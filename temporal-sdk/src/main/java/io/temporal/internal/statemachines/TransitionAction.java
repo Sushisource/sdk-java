@@ -33,4 +33,6 @@ interface TransitionAction<State, Data> {
 
   /** List of states the apply operation can return. */
   List<State> getAllowedStates();
+
+  Boolean hasCallback();
 }

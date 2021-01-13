@@ -51,6 +51,11 @@ class DynamicTransitionAction<State, Data> implements TransitionAction<State, Da
   }
 
   @Override
+  public Boolean hasCallback() {
+    return true;
+  }
+
+  @Override
   public String toString() {
     return "DynamicTransitionAction{" + "expectedStates=" + Arrays.toString(expectedStates) + '}';
   }

@@ -19,6 +19,7 @@
 
 package io.temporal.internal.statemachines;
 
+import com.google.common.base.CaseFormat;
 import io.temporal.api.enums.v1.CommandType;
 import io.temporal.api.enums.v1.EventType;
 import io.temporal.workflow.Functions;
@@ -137,7 +138,7 @@ final class StateMachineDefinition<State, ExplicitEvent, Data> {
     checkFinalState(from);
     add(
         new Transition<>(from, new TransitionEvent<>(explicitEvent)),
-        new FixedTransitionAction<>(to, (data) -> {}));
+        new FixedTransitionAction<>(to));
     return this;
   }
 
@@ -234,7 +235,8 @@ final class StateMachineDefinition<State, ExplicitEvent, Data> {
     checkFinalState(from);
     add(
         new Transition<>(from, new TransitionEvent<>(commandType)),
-        new FixedTransitionAction<>(to, (data -> {})));
+        // TODO: This will break other shit presumably, no checkin.
+        new FixedTransitionAction<>(to));
     return this;
   }
 
@@ -319,6 +321,71 @@ final class StateMachineDefinition<State, ExplicitEvent, Data> {
     result.append(year);
     result.append(" Temporal Technologies, Inc. All Rights Reserved.\n");
     result.append("@enduml\n");
+    return result.toString();
+  }
+
+  /** Generates rust code for the core sdk. */
+  public String asRustStateMachine() {
+    StringBuilder result = new StringBuilder();
+    result.append("fsm! {\n\t");
+    result
+        .append(this.getName())
+        .append("Machine, ")
+        .append(this.getName())
+        .append("Command, ")
+        .append(this.getName())
+        .append("MachineError\n");
+
+    List<Transition<State, TransitionEvent<ExplicitEvent>>> transitionList =
+        new ArrayList<>(transitions.keySet());
+    transitionList.sort(Comparator.comparing((tt) -> tt.getFrom().toString()));
+
+    State lastState = null;
+    Set<State> allStates = new HashSet<>();
+    for (Transition<State, TransitionEvent<ExplicitEvent>> transition : transitionList) {
+      if (lastState != transition.getFrom()) {
+        result.append("\n");
+        lastState = transition.getFrom();
+      }
+      allStates.add(transition.getFrom());
+      TransitionAction<State, Data> action = transitions.get(transition);
+      List<State> targets = action.getAllowedStates();
+      for (State target : targets) {
+        allStates.add(target);
+        // Camel case ify state names
+        String from =
+            CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, transition.getFrom().toString());
+        String to = CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, target.toString());
+        String trans =
+            CaseFormat.UPPER_UNDERSCORE.to(
+                CaseFormat.UPPER_CAMEL, transition.getExplicitEvent().toString());
+        if (transition.event.commandEvent != null) {
+          trans = "Command" + trans;
+        }
+        result.append("\t");
+        result.append(from);
+        result.append(" --(");
+        result.append(trans);
+        if (action.hasCallback()) {
+          result
+              .append(", on_")
+              .append(CaseFormat.UPPER_CAMEL.to(CaseFormat.LOWER_UNDERSCORE, trans));
+        }
+        result.append(") --> ");
+        result.append(to);
+        result.append('\n');
+      }
+    }
+    result.append("}\n\n");
+
+    // Scaffolding for every state
+    for (State s : allStates) {
+      result.append("#[derive(Default)]\n");
+      result.append("pub struct ");
+      result.append(s.toString());
+      result.append(" {}\n\n");
+    }
+
     return result.toString();
   }
 

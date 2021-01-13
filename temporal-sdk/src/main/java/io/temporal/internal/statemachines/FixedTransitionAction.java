@@ -35,6 +35,11 @@ class FixedTransitionAction<State, Data> implements TransitionAction<State, Data
     this.action = action;
   }
 
+  FixedTransitionAction(State state) {
+    this.state = state;
+    this.action = null;
+  }
+
   @Override
   public String toString() {
     return "FixedTransitionAction{" + "state=" + state + ", callback=" + action + '}';
@@ -49,5 +54,10 @@ class FixedTransitionAction<State, Data> implements TransitionAction<State, Data
   @Override
   public List<State> getAllowedStates() {
     return Collections.singletonList(state);
+  }
+
+  @Override
+  public Boolean hasCallback() {
+    return this.action != null;
   }
 }

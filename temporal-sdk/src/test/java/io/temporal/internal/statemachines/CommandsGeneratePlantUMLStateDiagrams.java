@@ -25,6 +25,7 @@ import com.google.common.io.Files;
 import io.temporal.workflow.Functions;
 import io.temporal.workflow.WorkflowTest;
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -61,7 +62,8 @@ public class CommandsGeneratePlantUMLStateDiagrams {
     try {
       Field definition = commandClass.getField("STATE_MACHINE_DEFINITION");
       definition.setAccessible(true);
-      Method method = definition.getType().getDeclaredMethod("asPlantUMLStateDiagram");
+      //      Method method = definition.getType().getDeclaredMethod("asPlantUMLStateDiagram");
+      Method method = definition.getType().getDeclaredMethod("asRustStateMachine");
       Object instance = definition.get(null);
       generator =
           () -> {
@@ -74,7 +76,7 @@ public class CommandsGeneratePlantUMLStateDiagrams {
     } catch (NoSuchMethodException | NoSuchFieldException | IllegalAccessException e) {
       throw new RuntimeException("Cannot generate from " + commandClass.getName(), e);
     }
-    writeToFile("main", commandClass, generator.apply());
+    writeToRustFile("main", commandClass, generator.apply());
   }
 
   static void writeToFile(String prefix, Class<?> type, String diagram) {
@@ -111,5 +113,22 @@ public class CommandsGeneratePlantUMLStateDiagrams {
         "Look at the generated diagram for the missing state transition: "
             + diagramFile
             + ".\nDon't check this file in. Fix the unit test and delete the file.");
+  }
+
+  static void writeToRustFile(String prefix, Class<?> type, String code) {
+    String projectPath = System.getProperty("user.dir");
+    String relativePath = type.getName().replace(".", File.separator);
+    String fullRelativePath =
+        ("src/" + prefix + "/java/" + relativePath).replace("/", File.separator);
+    String rustFile = (projectPath + "/" + fullRelativePath).replace("/", File.separator) + ".rs";
+    File rsFile = new File(rustFile);
+    CharSink sink = Files.asCharSink(rsFile, Charsets.UTF_8);
+    StringBuilder content = new StringBuilder();
+    content.append(code);
+    try {
+      sink.write(content);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 }
